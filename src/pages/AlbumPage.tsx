@@ -53,22 +53,28 @@ const AlbumPage = () => {
     }
   };
 
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!id || !album || !e.target.files || e.target.files.length === 0) return;
     
-    const file = e.target.files[0];
-    const updatedAlbums = await addPhotoToAlbum(id, file);
-    const updatedAlbum = updatedAlbums.find(a => a.id === id);
-    
-    if (updatedAlbum) {
-      setAlbum(updatedAlbum);
+    try {
+      const updatedAlbums = await addPhotoToAlbum(id, e.target.files);
+      const updatedAlbum = updatedAlbums.find(a => a.id === id);
+      
+      if (updatedAlbum) {
+        setAlbum(updatedAlbum);
+      }
+    } catch (error) {
+      console.error("Ошибка при добавлении фотографий:", error);
+      alert("Произошла ошибка при добавлении фотографий. Возможно, превышен лимит хранилища.");
     }
     
-    // Сбросить input для возможности выбора того же файла повторно
+    // Сбросить input для возможности выбора тех же файлов повторно
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
+
 
   const handleDeletePhoto = (photoId: string) => {
     if (!id || !album) return;

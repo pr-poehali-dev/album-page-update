@@ -54,18 +54,22 @@ const AlbumCard = ({ album, onDelete, onRename }: AlbumCardProps) => {
       className="w-56 h-64 flex flex-col cursor-pointer hover:shadow-md transition-shadow"
       onClick={handleAlbumClick}
     >
+
       <CardContent className="flex-1 flex items-center justify-center p-4 relative">
         {album.photos.length > 0 ? (
-          <img
-            src={album.photos[0].url}
-            alt={album.name}
-            className="w-full h-full object-cover rounded"
-          />
+          <div className="w-full h-full flex items-center justify-center overflow-hidden rounded">
+            <img
+              src={album.photos[0].url}
+              alt={album.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
             <Icon name="Camera" size={64} className="text-gray-400" />
           </div>
         )}
+
         <Button
           variant="destructive"
           size="icon"

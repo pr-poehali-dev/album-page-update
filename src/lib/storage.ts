@@ -55,39 +55,68 @@ export const renameAlbum = (albumId: string, newName: string): Album[] => {
   return updatedAlbums;
 };
 
+
 // Добавить фото в альбом
-export const addPhotoToAlbum = (albumId: string, file: File): Promise<Album[]> => {
+export const addPhotoToAlbum = (albumId: string, files: FileList): Promise<Album[]> => {
   return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const photoUrl = event.target?.result as string;
-      
-      const albums = getAlbums();
-      const updatedAlbums = albums.map(album => {
-        if (album.id === albumId) {
-          // Определить ориентацию по соотношению сторон
-          const img = new Image();
-          img.src = photoUrl;
-          
-          const newPhoto: Photo = {
-            id: Date.now().toString(),
-            url: photoUrl,
-            filename: file.name,
-            orientation: img.width > img.height ? "landscape" : "portrait"
-          };
-          
-          return { ...album, photos: [...album.photos, newPhoto] };
-        }
-        return album;
-      });
-      
-      saveAlbums(updatedAlbums);
-      resolve(updatedAlbums);
-    };
+    const albums = getAlbums();
+    const albumIndex = albums.findIndex(album => album.id === albumId);
+    if (albumIndex === -1) {
+      resolve(albums);
+      return;
+    }
+
+    let processedCount = 0;
+    const totalFiles = files.length;
+    const updatedAlbum = { ...albums[albumIndex] };
     
-    reader.readAsDataURL(file);
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const photoUrl = event.target?.result as string;
+        
+        // Создаем временное изображение для определения ориентации
+        const img = new Image();
+        img.src = photoUrl;
+        
+        const newPhoto: Photo = {
+          id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+          url: photoUrl,
+          filename: file.name,
+          orientation: img.width > img.height ? "landscape" : "portrait"
+        };
+        
+        updatedAlbum.photos.push(newPhoto);
+        
+        processedCount++;
+        if (processedCount === totalFiles) {
+          // Все файлы обработаны, обновляем альбомы
+          const newAlbums = [...albums];
+          newAlbums[albumIndex] = updatedAlbum;
+          
+          try {
+            saveAlbums(newAlbums);
+            resolve(newAlbums);
+          } catch (e) {
+            // При ошибке квоты, сохраняем только последние 20 фотографий в альбоме
+            if (e instanceof Error && e.name === "QuotaExceededError") {
+              console.warn("Storage quota exceeded, keeping only recent photos");
+              updatedAlbum.photos = updatedAlbum.photos.slice(-20);
+              newAlbums[albumIndex] = updatedAlbum;
+              saveAlbums(newAlbums);
+              resolve(newAlbums);
+            } else {
+              throw e;
+            }
+          }
+        }
+      };
+      
+      reader.readAsDataURL(file);
+    });
   });
 };
+
 
 // Удалить фото из альбома
 export const deletePhotoFromAlbum = (albumId: string, photoId: string): Album[] => {
