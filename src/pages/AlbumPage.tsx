@@ -1,19 +1,28 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
-import { Album } from "@/lib/types";
+import { Album, AlbumViewSettings } from "@/lib/types";
 import { 
   getAlbums, 
   addPhotoToAlbum, 
-  deletePhotoFromAlbum 
+  deletePhotoFromAlbum,
+  deleteAllPhotos,
+  getAlbumViewSettings,
+  saveViewSettings
 } from "@/lib/storage";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import SliderLabel from "@/components/ui/slider-label";
 
 const AlbumPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [album, setAlbum] = useState<Album | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [albumName, setAlbumName] = useState("");
+  const [viewSettings, setViewSettings] = useState<AlbumViewSettings>({ gap: 4, columns: 4 });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -27,6 +36,11 @@ const AlbumPage = () => {
     }
     
     setAlbum(currentAlbum);
+    setAlbumName(currentAlbum.name);
+    
+    // Загрузить настройки отображения
+    const settings = getAlbumViewSettings(id);
+    setViewSettings(settings);
   }, [id, navigate]);
 
   const handleBackClick = () => {
@@ -34,16 +48,25 @@ const AlbumPage = () => {
   };
 
   const handleAddPhoto = () => {
-    if (!id || !album) return;
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!id || !album || !e.target.files || e.target.files.length === 0) return;
     
-    // Используем случайное изображение с Unsplash для демонстрации
-    const randomImageId = Math.floor(Math.random() * 1000);
-    const photoUrl = `https://source.unsplash.com/random/300x300?sig=${randomImageId}`;
-    
-    const updatedAlbums = addPhotoToAlbum(id, photoUrl);
+    const file = e.target.files[0];
+    const updatedAlbums = await addPhotoToAlbum(id, file);
     const updatedAlbum = updatedAlbums.find(a => a.id === id);
+    
     if (updatedAlbum) {
       setAlbum(updatedAlbum);
+    }
+    
+    // Сбросить input для возможности выбора того же файла повторно
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -54,6 +77,62 @@ const AlbumPage = () => {
     const updatedAlbum = updatedAlbums.find(a => a.id === id);
     if (updatedAlbum) {
       setAlbum(updatedAlbum);
+    }
+  };
+  
+  const handleDeleteAllPhotos = () => {
+    if (!id || !album) return;
+    
+    const updatedAlbums = deleteAllPhotos(id);
+    const updatedAlbum = updatedAlbums.find(a => a.id === id);
+    if (updatedAlbum) {
+      setAlbum(updatedAlbum);
+    }
+  };
+  
+  const handleAlbumNameDoubleClick = () => {
+    setIsEditing(true);
+  };
+  
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAlbumName(e.target.value);
+  };
+  
+  const handleNameSave = () => {
+    if (!id || !album) return;
+    
+    const albums = getAlbums();
+    const updatedAlbums = albums.map(a => 
+      a.id === id ? { ...a, name: albumName } : a
+    );
+    
+    localStorage.setItem("photo-albums", JSON.stringify(updatedAlbums));
+    setAlbum({ ...album, name: albumName });
+    setIsEditing(false);
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleNameSave();
+    } else if (e.key === "Escape") {
+      setAlbumName(album?.name || "");
+      setIsEditing(false);
+    }
+  };
+  
+  const handleGapChange = (value: number) => {
+    const newSettings = { ...viewSettings, gap: value };
+    setViewSettings(newSettings);
+    if (id) {
+      saveViewSettings(id, newSettings);
+    }
+  };
+  
+  const handleColumnsChange = (value: number) => {
+    const newSettings = { ...viewSettings, columns: value };
+    setViewSettings(newSettings);
+    if (id) {
+      saveViewSettings(id, newSettings);
     }
   };
 
@@ -74,9 +153,33 @@ const AlbumPage = () => {
               <Icon name="ArrowLeft" size={16} />
               Назад
             </Button>
-            <h1 className="text-3xl font-bold">{album.name}</h1>
+            {isEditing ? (
+              <input
+                type="text"
+                value={albumName}
+                onChange={handleNameChange}
+                onBlur={handleNameSave}
+                onKeyDown={handleKeyDown}
+                autoFocus
+                className="text-3xl font-bold p-1 border rounded"
+              />
+            ) : (
+              <h1 
+                className="text-3xl font-bold cursor-pointer" 
+                onDoubleClick={handleAlbumNameDoubleClick}
+              >
+                {album.name}
+              </h1>
+            )}
           </div>
           <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/*"
+              className="hidden"
+            />
             <Button 
               onClick={handleAddPhoto}
               className="flex items-center gap-2"
@@ -84,6 +187,43 @@ const AlbumPage = () => {
               <Icon name="Plus" size={16} />
               Добавить фото
             </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeleteAllPhotos}
+              className="flex items-center gap-2"
+            >
+              <Icon name="Trash2" size={16} />
+              Удалить все фото
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Icon name="Settings" size={16} />
+                  Настройки вида
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="space-y-4">
+                  <h3 className="font-medium">Настройки отображения</h3>
+                  <SliderLabel
+                    label="Количество колонок"
+                    value={viewSettings.columns}
+                    onChange={handleColumnsChange}
+                    min={2}
+                    max={10}
+                    valueDisplay={`${viewSettings.columns}`}
+                  />
+                  <SliderLabel
+                    label="Отступ между фото"
+                    value={viewSettings.gap}
+                    onChange={handleGapChange}
+                    min={1}
+                    max={12}
+                    valueDisplay={`${viewSettings.gap * 4}px`}
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -100,22 +240,38 @@ const AlbumPage = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div 
+            className="grid gap-4" 
+            style={{ 
+              gridTemplateColumns: `repeat(${viewSettings.columns}, 1fr)`,
+              gap: `${viewSettings.gap * 4}px`
+            }}
+          >
             {album.photos.map((photo) => (
               <div key={photo.id} className="relative group">
-                <img 
-                  src={photo.url} 
-                  alt="" 
-                  className="w-full aspect-square object-cover rounded-md"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => handleDeletePhoto(photo.id)}
+                <div 
+                  className={`
+                    relative overflow-hidden rounded-md border border-gray-200
+                    ${photo.orientation === "portrait" ? "aspect-[2/3]" : "aspect-[3/2]"}
+                  `}
                 >
-                  <Icon name="Trash2" size={16} />
-                </Button>
+                  <img 
+                    src={photo.url} 
+                    alt={photo.filename} 
+                    className="w-full h-full object-cover"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleDeletePhoto(photo.id)}
+                  >
+                    <Icon name="Trash2" size={16} />
+                  </Button>
+                </div>
+                <div className="mt-1 text-sm text-gray-600 truncate">
+                  {photo.filename}
+                </div>
               </div>
             ))}
           </div>
