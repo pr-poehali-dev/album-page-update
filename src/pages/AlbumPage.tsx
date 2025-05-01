@@ -180,13 +180,16 @@ const AlbumPage = () => {
           </div>
           <div className="flex gap-2">
             <input
+
+            <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
               accept="image/*"
+              multiple
               className="hidden"
             />
-            <Button 
+
               onClick={handleAddPhoto}
               className="flex items-center gap-2"
             >

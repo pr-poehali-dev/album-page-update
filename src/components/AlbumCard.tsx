@@ -55,6 +55,7 @@ const AlbumCard = ({ album, onDelete, onRename }: AlbumCardProps) => {
       onClick={handleAlbumClick}
     >
 
+
       <CardContent className="flex-1 flex items-center justify-center p-4 relative">
         {album.photos.length > 0 ? (
           <div className="w-full h-full flex items-center justify-center overflow-hidden rounded">
@@ -69,6 +70,7 @@ const AlbumCard = ({ album, onDelete, onRename }: AlbumCardProps) => {
             <Icon name="Camera" size={64} className="text-gray-400" />
           </div>
         )}
+
 
         <Button
           variant="destructive"
