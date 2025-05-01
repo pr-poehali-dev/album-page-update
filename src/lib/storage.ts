@@ -18,10 +18,31 @@ export const getAlbums = (): Album[] => {
   }
 };
 
+
 // Сохранить все альбомы в localStorage
 export const saveAlbums = (albums: Album[]): void => {
-  localStorage.setItem(ALBUMS_STORAGE_KEY, JSON.stringify(albums));
+  try {
+    localStorage.setItem(ALBUMS_STORAGE_KEY, JSON.stringify(albums));
+  } catch (e) {
+    if (e instanceof Error && e.name === "QuotaExceededError") {
+      console.warn("Storage quota exceeded, compressing albums data");
+      // Оптимизация: оставляем только последние 10 фотографий в каждом альбоме
+      const compressedAlbums = albums.map(album => ({
+        ...album,
+        photos: album.photos.slice(-10)
+      }));
+      
+      try {
+        localStorage.setItem(ALBUMS_STORAGE_KEY, JSON.stringify(compressedAlbums));
+      } catch (e2) {
+        console.error("Still can't save after compression:", e2);
+      }
+    } else {
+      console.error("Error saving albums:", e);
+    }
+  }
 };
+
 
 // Добавить новый альбом
 export const addAlbum = (): Album[] => {
